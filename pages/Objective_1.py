@@ -88,7 +88,6 @@ try:
     # PREPARE ECONOMIC DATA
     # ==========================================
 
-    # Keep economic data independent of sex selection
     df_economic = df.drop_duplicates(
         subset=["state", "year"]
     )
@@ -166,6 +165,35 @@ try:
     ) * 100
 
     # ==========================================
+    # SUMMARY BOX
+    # ==========================================
+
+    st.subheader("Summary Box")
+
+    latest = df_trends[
+        df_trends["year"] == 2024
+    ].iloc[0]
+
+    col1, col2, col3 = st.columns(3)
+
+    col1.metric(
+        "Household Income",
+        f"RM {latest['income_median']:,.2f}"
+    )
+
+    col2.metric(
+        "CPI Index",
+        f"{latest['cpi_index']:.2f}"
+    )
+
+    col3.metric(
+        f"Marriage Rate ({sex_option})",
+        f"{latest['marriage_rate']:.2f}"
+    )
+
+    st.caption("Summary values for 2024.")
+
+    # ==========================================
     # LINE CHART
     # ==========================================
 
@@ -234,10 +262,6 @@ try:
     # ==========================================
 
     st.subheader("Key Observation")
-
-    latest = df_trends[
-        df_trends["year"] == 2024
-    ].iloc[0]
 
     observations = {
         "Household Income": latest["income_normalized"],
