@@ -67,40 +67,23 @@ try:
         subset=["state", "year", "cpi_index", "marriage_rate"]
     )
 
-    # Remove duplicated economic records
-    # CPI is assumed to be the same across Male and Female rows
+    # Get unique economic records
     economic_data = df[
         ["state", "year", "cpi_index"]
     ].drop_duplicates(
         subset=["state", "year"]
     )
 
-    # Marriage data
-    marriage_data = df[
-        ["state", "year", "sex", "marriage_rate"]
-    ].copy()
-
-    # Sex filter
-    st.subheader("Data Filter")
-
-    selected_sex = st.selectbox(
-        "Select Sex",
-        ["All", "Male", "Female"]
+    # Calculate average marriage rate for Male and Female
+    marriage_data = (
+        df.groupby(
+            ["state", "year"],
+            as_index=False
+        )["marriage_rate"]
+        .mean()
     )
 
-    if selected_sex == "All":
-        marriage_data = (
-            marriage_data
-            .groupby(["state", "year"], as_index=False)
-            ["marriage_rate"]
-            .mean()
-        )
-    else:
-        marriage_data = marriage_data[
-            marriage_data["sex"] == selected_sex
-        ][["state", "year", "marriage_rate"]]
-
-    # Merge unique CPI data with marriage data
+    # Merge economic and marriage data
     scatter_data = pd.merge(
         economic_data,
         marriage_data,
@@ -115,7 +98,7 @@ try:
     scatter_data["year_str"] = scatter_data["year"].astype(str)
 
     if scatter_data.empty:
-        st.warning("No data available for the selected filter.")
+        st.warning("No data available for the selected years.")
 
     else:
 
