@@ -40,7 +40,7 @@ st.markdown(
 
 st.divider()
 
-# Research objective
+# Research Objective
 st.subheader("Research Objective")
 
 st.info(
@@ -53,111 +53,234 @@ st.info(
 def load_data():
     return pd.read_csv("merged_dataset.csv")
 
+
 try:
     df = load_data()
 
     # Filter selected years
-    scatter_data = df[
+    df = df[
         df["year"].isin([2020, 2022, 2024])
-    ].dropna(
+    ].copy()
+
+    # Remove missing values
+    df = df.dropna(
+        subset=["state", "year", "cpi_index", "marriage_rate"]
+    )
+
+    # Remove duplicated economic records
+    # CPI is assumed to be the same across Male and Female rows
+    economic_data = df[
+        ["state", "year", "cpi_index"]
+    ].drop_duplicates(
+        subset=["state", "year"]
+    )
+
+    # Marriage data
+    marriage_data = df[
+        ["state", "year", "sex", "marriage_rate"]
+    ].copy()
+
+    # Sex filter
+    st.subheader("Data Filter")
+
+    selected_sex = st.selectbox(
+        "Select Sex",
+        ["All", "Male", "Female"]
+    )
+
+    if selected_sex == "All":
+        marriage_data = (
+            marriage_data
+            .groupby(["state", "year"], as_index=False)
+            ["marriage_rate"]
+            .mean()
+        )
+    else:
+        marriage_data = marriage_data[
+            marriage_data["sex"] == selected_sex
+        ][["state", "year", "marriage_rate"]]
+
+    # Merge unique CPI data with marriage data
+    scatter_data = pd.merge(
+        economic_data,
+        marriage_data,
+        on=["state", "year"],
+        how="inner"
+    )
+
+    scatter_data = scatter_data.dropna(
         subset=["cpi_index", "marriage_rate"]
-    ).copy()
+    )
 
     scatter_data["year_str"] = scatter_data["year"].astype(str)
 
-    # Scatter plot
-    st.subheader("Relationship Between CPI and Marriage Rates")
+    if scatter_data.empty:
+        st.warning("No data available for the selected filter.")
 
-    sns.set_theme(style="whitegrid")
-
-    fig, ax = plt.subplots(figsize=(11, 6))
-
-    sns.scatterplot(
-        data=scatter_data,
-        x="cpi_index",
-        y="marriage_rate",
-        hue="year_str",
-        hue_order=["2020", "2022", "2024"],
-        palette={
-            "2020": "#3B82F6",
-            "2022": "#F59E0B",
-            "2024": "#16A085"
-        },
-        s=100,
-        alpha=0.8,
-        edgecolor="white",
-        linewidth=0.8,
-        ax=ax
-    )
-
-    # Overall trendline
-    x_vals = scatter_data["cpi_index"]
-    y_vals = scatter_data["marriage_rate"]
-
-    if len(scatter_data) >= 2 and x_vals.nunique() >= 2:
-        m, c = np.polyfit(x_vals, y_vals, 1)
-
-        x_range = np.linspace(
-            x_vals.min(),
-            x_vals.max(),
-            100
-        )
-
-        ax.plot(
-            x_range,
-            m * x_range + c,
-            color="black",
-            linestyle="--",
-            linewidth=2,
-            label="Trendline"
-        )
-
-    # Chart formatting
-    ax.set_title(
-        "CPI vs Marriage Rates (2020, 2022, 2024)",
-        fontsize=15,
-        fontweight="bold",
-        pad=15
-    )
-
-    ax.set_xlabel("Consumer Price Index (CPI)", fontsize=12)
-    ax.set_ylabel("Marriage Rate", fontsize=12)
-
-    ax.legend(title="Year")
-    sns.despine()
-
-    fig.tight_layout()
-
-    st.pyplot(fig, use_container_width=True)
-    plt.close(fig)
-
-    # Short interpretation
-    correlation = scatter_data[
-        ["cpi_index", "marriage_rate"]
-    ].corr(method="pearson").iloc[0, 1]
-
-    st.subheader("Key Observation")
-
-    if pd.isna(correlation):
-        st.write("There is insufficient variation in the data to calculate a correlation.")
-    elif correlation > 0:
-        st.write(
-            f"The chart indicates a positive relationship between CPI "
-            f"and marriage rates, with a Pearson correlation of {correlation:.2f}."
-        )
-    elif correlation < 0:
-        st.write(
-            f"The chart indicates a negative relationship between CPI "
-            f"and marriage rates, with a Pearson correlation of {correlation:.2f}."
-        )
     else:
-        st.write(
-            "The chart indicates no linear relationship between CPI and marriage rates."
+
+        # ==================================
+        # SUMMARY BOX
+        # ==================================
+
+        st.subheader("Summary Box")
+
+        average_cpi = scatter_data["cpi_index"].mean()
+        average_marriage = scatter_data["marriage_rate"].mean()
+
+        correlation = scatter_data[
+            ["cpi_index", "marriage_rate"]
+        ].corr(method="pearson").iloc[0, 1]
+
+        # Determine relationship
+        if pd.isna(correlation):
+            relationship = "Insufficient Data"
+        elif correlation > 0:
+            relationship = "Positive"
+        elif correlation < 0:
+            relationship = "Negative"
+        else:
+            relationship = "No Linear Relationship"
+
+        # Display summary metrics
+        col1, col2, col3 = st.columns(3)
+
+        col1.metric(
+            "Average CPI",
+            f"{average_cpi:.2f}"
         )
 
-    st.caption(
-        "Note: Correlation indicates an association and does not prove causation."
-    )
+        col2.metric(
+            "Average Marriage Rate",
+            f"{average_marriage:.2f}"
+        )
+
+        col3.metric(
+            "Pearson Correlation",
+            f"{correlation:.2f}" if pd.notna(correlation) else "N/A"
+        )
+
+        # Key Insight
+        st.info(
+            f"**Key Insight:** The relationship between CPI and "
+            f"marriage rates is {relationship.lower()}, based on "
+            f"the Pearson correlation."
+        )
+
+        st.divider()
+
+        # ==================================
+        # SCATTER PLOT
+        # ==================================
+
+        st.subheader("Relationship Between CPI and Marriage Rates")
+
+        sns.set_theme(style="whitegrid")
+
+        fig, ax = plt.subplots(figsize=(11, 6))
+
+        sns.scatterplot(
+            data=scatter_data,
+            x="cpi_index",
+            y="marriage_rate",
+            hue="year_str",
+            hue_order=["2020", "2022", "2024"],
+            palette={
+                "2020": "#3B82F6",
+                "2022": "#F59E0B",
+                "2024": "#16A085"
+            },
+            s=100,
+            alpha=0.8,
+            edgecolor="white",
+            linewidth=0.8,
+            ax=ax
+        )
+
+        # Overall trendline
+        x_vals = scatter_data["cpi_index"]
+        y_vals = scatter_data["marriage_rate"]
+
+        if len(scatter_data) >= 2 and x_vals.nunique() >= 2:
+            m, c = np.polyfit(x_vals, y_vals, 1)
+
+            x_range = np.linspace(
+                x_vals.min(),
+                x_vals.max(),
+                100
+            )
+
+            ax.plot(
+                x_range,
+                m * x_range + c,
+                color="black",
+                linestyle="--",
+                linewidth=2,
+                label="Trendline"
+            )
+
+        # Chart formatting
+        ax.set_title(
+            "CPI vs Marriage Rates (2020, 2022, 2024)",
+            fontsize=15,
+            fontweight="bold",
+            pad=15
+        )
+
+        ax.set_xlabel(
+            "Consumer Price Index (CPI)",
+            fontsize=12
+        )
+
+        ax.set_ylabel(
+            "Marriage Rate",
+            fontsize=12
+        )
+
+        ax.legend(title="Year")
+        sns.despine()
+
+        fig.tight_layout()
+
+        st.pyplot(fig, use_container_width=True)
+        plt.close(fig)
+
+        # ==================================
+        # INTERPRETATION
+        # ==================================
+
+        st.subheader("Key Observation")
+
+        if pd.isna(correlation):
+            st.write(
+                "There is insufficient variation in the data "
+                "to calculate a Pearson correlation."
+            )
+
+        elif correlation > 0:
+            st.write(
+                f"The chart indicates a positive relationship "
+                f"between CPI and marriage rates, with a "
+                f"Pearson correlation of {correlation:.2f}."
+            )
+
+        elif correlation < 0:
+            st.write(
+                f"The chart indicates a negative relationship "
+                f"between CPI and marriage rates, with a "
+                f"Pearson correlation of {correlation:.2f}."
+            )
+
+        else:
+            st.write(
+                "The chart indicates no linear relationship "
+                "between CPI and marriage rates."
+            )
+
+        st.caption(
+            "Note: Correlation indicates an association and "
+            "does not prove causation."
+        )
 
 except Exception as e:
     st.error(f"Error loading dataset: {e}")
