@@ -22,18 +22,12 @@ st.markdown("""
         color: #64748b;
         font-size: 15px;
     }
-    div[data-testid="stMetric"] {
-        background-color: #f8fafc;
-        border: 1px solid #e2e8f0;
-        padding: 18px;
-        border-radius: 12px;
-    }
 </style>
 """, unsafe_allow_html=True)
 
 # Header
 st.markdown(
-    '<p class="main-title">📈 Objective 1: Socio-Economic Trends</p>',
+    '<p class="main-title">Objective 1: Socio-Economic Trends</p>',
     unsafe_allow_html=True
 )
 
@@ -44,7 +38,7 @@ st.markdown(
 
 st.divider()
 
-# Objective
+# Research Objective
 st.subheader("Research Objective")
 
 st.info(
@@ -57,29 +51,43 @@ st.info(
 def load_data():
     return pd.read_csv("merged_dataset.csv")
 
+
 try:
     df = load_data()
 
     # Filter selected years
     df = df[df["year"].isin([2020, 2022, 2024])].copy()
 
-    # National-level averages
-    df_trends = df.groupby("year").agg({
-        "income_median": "mean",
-        "cpi_index": "mean",
-        "marriage_rate": "mean"
-    }).reset_index()
+    # Remove duplicated economic records
+    df_economic = df.drop_duplicates(
+        subset=["state", "year", "income_median", "cpi_index"]
+    )
 
-    # Check base year
-    if 2020 not in df_trends["year"].values:
-        st.error("2020 data is not available.")
+    # Calculate annual averages
+    df_trends = df_economic.groupby("year").agg({
+        "income_median": "mean",
+        "cpi_index": "mean"
+    })
+
+    # Calculate marriage rate separately
+    df_marriage = df.groupby("year").agg({
+        "marriage_rate": "mean"
+    })
+
+    df_trends = df_trends.join(df_marriage).reset_index()
+
+    # Check required years
+    required_years = [2020, 2022, 2024]
+
+    if not set(required_years).issubset(set(df_trends["year"])):
+        st.error("Data for 2020, 2022 and 2024 must be available.")
         st.stop()
 
-    base_2020 = df_trends[
-        df_trends["year"] == 2020
-    ].iloc[0]
+    df_trends = df_trends.sort_values("year")
 
-    # Normalize values to base year 2020 = 100
+    # Normalize values to 2020 = 100
+    base_2020 = df_trends[df_trends["year"] == 2020].iloc[0]
+
     df_trends["income_normalized"] = (
         df_trends["income_median"] /
         base_2020["income_median"]
@@ -95,43 +103,12 @@ try:
         base_2020["marriage_rate"]
     ) * 100
 
-    # KPI Cards
-    st.subheader("Key Indicators")
-
-    col1, col2, col3 = st.columns(3)
-
-    latest = df_trends.iloc[-1]
-
-    col1.metric(
-        "Median Household Income",
-        f"RM {latest['income_median']:,.2f}"
-    )
-
-    col2.metric(
-        "Consumer Price Index",
-        f"{latest['cpi_index']:.2f}"
-    )
-
-    col3.metric(
-        "Marriage Rate",
-        f"{latest['marriage_rate']:.2f}"
-    )
-
-    st.caption(f"Latest selected year: {int(latest['year'])}")
-
-    st.divider()
-
-    # Chart section
+    # Line Chart
     st.subheader("Trend Analysis")
-
-    st.write(
-        "The line chart compares changes in three socio-economic "
-        "indicators using 2020 as the base year (2020 = 100)."
-    )
 
     sns.set_theme(style="whitegrid")
 
-    fig, ax = plt.subplots(figsize=(12, 6))
+    fig, ax = plt.subplots(figsize=(11, 6))
 
     sns.lineplot(
         data=df_trends,
@@ -164,7 +141,7 @@ try:
     )
 
     ax.set_title(
-        "Trends in Socio-Economic Indicators (2020 = 100)",
+        "Socio-Economic Trends (2020 = 100)",
         fontsize=15,
         fontweight="bold",
         pad=15
@@ -172,9 +149,8 @@ try:
 
     ax.set_xlabel("Year", fontsize=12)
     ax.set_ylabel("Index Value (2020 = 100)", fontsize=12)
-
     ax.set_xticks([2020, 2022, 2024])
-    ax.legend(title="Indicators", loc="best")
+    ax.legend(title="Indicators")
 
     sns.despine()
     fig.tight_layout()
@@ -183,50 +159,39 @@ try:
     plt.close(fig)
 
     st.caption(
-        "Note: Normalized values allow indicators with different "
-        "measurement units to be compared on the same scale."
+        "Note: All indicators are normalized to 2020 = 100 "
+        "to allow comparison of their relative changes."
     )
 
-    st.divider()
+    # Key Observation
+    st.subheader("Key Observation")
 
-    # Raw data table
-    st.subheader("Annual Data Summary")
+    latest = df_trends[df_trends["year"] == 2024].iloc[0]
 
-    display_data = df_trends[
-        ["year", "income_median", "cpi_index", "marriage_rate"]
-    ].copy()
+    for indicator, value in [
+        ("Household Income", latest["income_normalized"]),
+        ("Consumer Price Index", latest["cpi_normalized"]),
+        ("Marriage Rate", latest["marriage_normalized"])
+    ]:
 
-    display_data.columns = [
-        "Year",
-        "Median Household Income (RM)",
-        "CPI Index",
-        "Marriage Rate"
-    ]
+        change = value - 100
 
-    st.dataframe(
-        display_data.style.format({
-            "Median Household Income (RM)": "{:,.2f}",
-            "CPI Index": "{:.2f}",
-            "Marriage Rate": "{:.2f}"
-        }),
-        use_container_width=True,
-        hide_index=True
-    )
+        if change > 0:
+            st.write(
+                f"{indicator} increased by {change:.2f}% "
+                "compared with 2020."
+            )
 
-    st.divider()
+        elif change < 0:
+            st.write(
+                f"{indicator} decreased by {abs(change):.2f}% "
+                "compared with 2020."
+            )
 
-    # Interpretation
-    st.subheader("Visualization Interpretation")
-
-    st.write("""
-    The line chart illustrates the changes in household income,
-    consumer prices and marriage rates across the selected years.
-    The normalized values make it easier to compare the relative
-    changes in all three indicators.
-
-    Values above 100 indicate an increase compared with 2020,
-    while values below 100 indicate a decrease.
-    """)
+        else:
+            st.write(
+                f"{indicator} remained at the same level as 2020."
+            )
 
 except Exception as e:
     st.error(f"Error loading or processing data: {e}")
