@@ -3,20 +3,14 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-# ==========================================
-# PAGE CONFIGURATION
-# ==========================================
-
+# Page configuration
 st.set_page_config(
     page_title="Objective 2 | Income vs CPI",
     page_icon="📊",
     layout="wide"
 )
 
-# ==========================================
-# CUSTOM CSS
-# ==========================================
-
+# Custom styling
 st.markdown("""
 <style>
     .main-title {
@@ -24,27 +18,16 @@ st.markdown("""
         font-weight: 700;
         color: #2563eb;
     }
-
     .subtitle {
         color: #64748b;
         font-size: 15px;
     }
-
-    div[data-testid="stMetric"] {
-        background-color: #f8fafc;
-        border: 1px solid #e2e8f0;
-        padding: 18px;
-        border-radius: 12px;
-    }
 </style>
 """, unsafe_allow_html=True)
 
-# ==========================================
-# HEADER
-# ==========================================
-
+# Header
 st.markdown(
-    '<p class="main-title">📊 Objective 2: Household Income vs CPI</p>',
+    '<p class="main-title">Objective 2: Household Income vs CPI</p>',
     unsafe_allow_html=True
 )
 
@@ -55,10 +38,7 @@ st.markdown(
 
 st.divider()
 
-# ==========================================
-# RESEARCH OBJECTIVE
-# ==========================================
-
+# Research Objective
 st.subheader("Research Objective")
 
 st.info(
@@ -66,70 +46,61 @@ st.info(
     "to identify periods where price increases outpace income."
 )
 
-# ==========================================
-# LOAD DATASET
-# ==========================================
-
+# Load dataset
 @st.cache_data
 def load_data():
     return pd.read_csv("merged_dataset.csv")
 
 
 try:
-
     df = load_data()
 
     # Filter selected years
     df = df[df["year"].isin([2020, 2022, 2024])].copy()
 
-    # Aggregate annual values
-    df_trends = df.groupby("year").agg({
+    # Remove duplicated economic records caused by separate sex rows
+    df_economic = df.drop_duplicates(
+        subset=["state", "year", "income_median", "cpi_index"]
+    )
+
+    # Calculate annual average values
+    df_trends = df_economic.groupby("year").agg({
         "income_median": "mean",
         "cpi_index": "mean"
-    }).reset_index()
+    })
 
-    # Check required years
     required_years = [2020, 2022, 2024]
 
-    if not set(required_years).issubset(set(df_trends["year"])):
+    if not set(required_years).issubset(df_trends.index):
         st.error("Data for 2020, 2022 and 2024 must be available.")
         st.stop()
 
-    # Arrange values by year
-    df_trends = df_trends.set_index("year").sort_index()
-
-    val_2020 = df_trends.loc[2020]
-    val_2022 = df_trends.loc[2022]
-    val_2024 = df_trends.loc[2024]
-
-    # ==========================================
-    # CALCULATE GROWTH RATES
-    # ==========================================
-
+    # Calculate percentage growth
     income_growth_20_22 = (
-        (val_2022["income_median"] - val_2020["income_median"])
-        / val_2020["income_median"]
+        (df_trends.loc[2022, "income_median"] -
+         df_trends.loc[2020, "income_median"])
+        / df_trends.loc[2020, "income_median"]
     ) * 100
 
     income_growth_22_24 = (
-        (val_2024["income_median"] - val_2022["income_median"])
-        / val_2022["income_median"]
+        (df_trends.loc[2024, "income_median"] -
+         df_trends.loc[2022, "income_median"])
+        / df_trends.loc[2022, "income_median"]
     ) * 100
 
     cpi_growth_20_22 = (
-        (val_2022["cpi_index"] - val_2020["cpi_index"])
-        / val_2020["cpi_index"]
+        (df_trends.loc[2022, "cpi_index"] -
+         df_trends.loc[2020, "cpi_index"])
+        / df_trends.loc[2020, "cpi_index"]
     ) * 100
 
     cpi_growth_22_24 = (
-        (val_2024["cpi_index"] - val_2022["cpi_index"])
-        / val_2022["cpi_index"]
+        (df_trends.loc[2024, "cpi_index"] -
+         df_trends.loc[2022, "cpi_index"])
+        / df_trends.loc[2022, "cpi_index"]
     ) * 100
 
-    # ==========================================
-    # PREPARE CHART DATA
-    # ==========================================
-
+    # Prepare chart data
     growth_data = pd.DataFrame({
         "Period": [
             "2020 to 2022",
@@ -137,14 +108,12 @@ try:
             "2020 to 2022",
             "2022 to 2024"
         ],
-
         "Growth Rate (%)": [
             income_growth_20_22,
             income_growth_22_24,
             cpi_growth_20_22,
             cpi_growth_22_24
         ],
-
         "Indicator": [
             "Household Income",
             "Household Income",
@@ -153,49 +122,8 @@ try:
         ]
     })
 
-    # ==========================================
-    # KEY INDICATORS
-    # ==========================================
-
-    st.subheader("Growth Rate Overview")
-
-    col1, col2 = st.columns(2)
-
-    col1.metric(
-        "Household Income Growth (2020 to 2022)",
-        f"{income_growth_20_22:.2f}%"
-    )
-
-    col2.metric(
-        "CPI Growth (2020 to 2022)",
-        f"{cpi_growth_20_22:.2f}%"
-    )
-
-    col3, col4 = st.columns(2)
-
-    col3.metric(
-        "Household Income Growth (2022 to 2024)",
-        f"{income_growth_22_24:.2f}%"
-    )
-
-    col4.metric(
-        "CPI Growth (2022 to 2024)",
-        f"{cpi_growth_22_24:.2f}%"
-    )
-
-    st.divider()
-
-    # ==========================================
-    # GROUPED BAR CHART
-    # ==========================================
-
+    # Grouped Bar Chart
     st.subheader("Growth Rate Comparison")
-
-    st.write("""
-    This grouped bar chart compares the percentage growth
-    of household income and Consumer Price Index (CPI)
-    across the two selected periods.
-    """)
 
     sns.set_theme(style="whitegrid")
 
@@ -223,27 +151,20 @@ try:
             fontweight="bold"
         )
 
-    # Chart styling
     ax.set_title(
-        "Comparison of Household Income and CPI Growth Rates",
+        "Household Income vs CPI Growth Rates",
         fontsize=15,
         fontweight="bold",
-        pad=18
+        pad=15
     )
 
     ax.set_xlabel("Period", fontsize=12)
     ax.set_ylabel("Percentage Growth (%)", fontsize=12)
+    ax.legend(title="Indicator")
 
-    ax.legend(
-        title="Indicators",
-        fontsize=10,
-        title_fontsize=11
-    )
-
-    # Dynamic axis limits, including negative values
+    # Adjust axis limits
     y_min = min(0, growth_data["Growth Rate (%)"].min())
     y_max = max(0, growth_data["Growth Rate (%)"].max())
-
     padding = max((y_max - y_min) * 0.20, 1)
 
     ax.set_ylim(y_min - padding * 0.3, y_max + padding)
@@ -254,65 +175,41 @@ try:
     st.pyplot(fig, use_container_width=True)
     plt.close(fig)
 
-    st.caption(
-        "Note: Growth rates are calculated based on the average "
-        "annual values for the selected years."
-    )
-
-    st.divider()
-
-    # ==========================================
-    # GROWTH DATA TABLE
-    # ==========================================
-
-    st.subheader("Growth Rate Data")
-
-    st.dataframe(
-        growth_data.pivot(
-            index="Period",
-            columns="Indicator",
-            values="Growth Rate (%)"
-        ).style.format("{:.2f}%"),
-        use_container_width=True
-    )
-
-    st.divider()
-
-    # ==========================================
-    # VISUALIZATION INTERPRETATION
-    # ==========================================
-
-    st.subheader("Visualization Interpretation")
+    # Key Observation
+    st.subheader("Key Observation")
 
     for period, income_growth, cpi_growth in [
         ("2020 to 2022", income_growth_20_22, cpi_growth_20_22),
         ("2022 to 2024", income_growth_22_24, cpi_growth_22_24)
     ]:
 
-        st.markdown(f"**{period}**")
-
         if cpi_growth > income_growth:
             st.write(
-                f"CPI growth ({cpi_growth:.2f}%) was higher than "
-                f"household income growth ({income_growth:.2f}%). "
-                "This indicates that consumer prices increased "
-                "faster than household income during this period."
+                f"During {period}, CPI growth ({cpi_growth:.2f}%) "
+                f"was higher than household income growth "
+                f"({income_growth:.2f}%). This suggests that "
+                "consumer prices increased faster than household income."
             )
 
         elif income_growth > cpi_growth:
             st.write(
-                f"Household income growth ({income_growth:.2f}%) "
-                f"was higher than CPI growth ({cpi_growth:.2f}%). "
-                "This indicates that household income increased "
-                "faster than consumer prices during this period."
+                f"During {period}, household income growth "
+                f"({income_growth:.2f}%) was higher than CPI growth "
+                f"({cpi_growth:.2f}%). This suggests that household "
+                "income increased faster than consumer prices."
             )
 
         else:
             st.write(
-                "Household income and CPI recorded the same "
-                "percentage growth during this period."
+                f"During {period}, household income and CPI recorded "
+                "the same percentage growth."
             )
 
-except Exception as e:
+    st.caption(
+        "Note: Growth rates are calculated using average annual values. "
+        "A higher CPI growth rate indicates that consumer prices increased "
+        "faster than household income."
+    )
 
+except Exception as e:
     st.error(f"Error loading or processing data: {e}")
