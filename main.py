@@ -1,13 +1,18 @@
 import streamlit as st
 import pandas as pd
 
+# Page configuration
 st.set_page_config(
-    page_title="Scientific Visualisation",
+    page_title="Visualising the Relationship Between Marriage Rates, Household Income and Consumer Prices in Malaysia",
     page_icon="📊",
     layout="wide"
 )
 
-st.title("📊 Scientific Visualisation Dashboard")
+# Main title
+st.title(
+    "Visualising the Relationship Between Marriage Rates, "
+    "Household Income and Consumer Prices in Malaysia"
+)
 
 st.write("""
 Welcome to the Scientific Visualisation Dashboard.
@@ -40,7 +45,7 @@ try:
 
     st.divider()
 
-    # Objectives
+    # Research objectives
     st.subheader("Research Objectives")
 
     col1, col2, col3 = st.columns(3)
