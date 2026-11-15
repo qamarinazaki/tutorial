@@ -88,6 +88,7 @@ try:
     # PREPARE ECONOMIC DATA
     # ==========================================
 
+    # Keep economic data independent of sex selection
     df_economic = df.drop_duplicates(
         subset=["state", "year"]
     )
@@ -146,7 +147,10 @@ try:
         or base_2020["cpi_index"] == 0
         or base_2020["marriage_rate"] == 0
     ):
-        st.error("Unable to normalize the data because a 2020 base value is missing or zero.")
+        st.error(
+            "Unable to normalize the data because a 2020 "
+            "base value is missing or zero."
+        )
         st.stop()
 
     df_trends["income_normalized"] = (
@@ -174,24 +178,55 @@ try:
         df_trends["year"] == 2024
     ].iloc[0]
 
+    # Calculate percentage changes from 2020 to 2024
+    income_change = latest["income_normalized"] - 100
+    cpi_change = latest["cpi_normalized"] - 100
+    marriage_change = latest["marriage_normalized"] - 100
+
     col1, col2, col3 = st.columns(3)
 
     col1.metric(
         "Household Income",
-        f"RM {latest['income_median']:,.2f}"
+        f"{income_change:+.2f}%",
+        help="Percentage change from 2020 to 2024"
     )
 
     col2.metric(
-        "CPI Index",
-        f"{latest['cpi_index']:.2f}"
+        "Consumer Price Index",
+        f"{cpi_change:+.2f}%",
+        help="Percentage change from 2020 to 2024"
     )
 
     col3.metric(
         f"Marriage Rate ({sex_option})",
-        f"{latest['marriage_rate']:.2f}"
+        f"{marriage_change:+.2f}%",
+        help="Percentage change from 2020 to 2024"
     )
 
-    st.caption("Summary values for 2024.")
+    # Key Insight
+    if cpi_change > income_change:
+        st.info(
+            "Key Insight: Consumer prices increased more than "
+            "household income between 2020 and 2024."
+        )
+
+    elif income_change > cpi_change:
+        st.info(
+            "Key Insight: Household income increased more than "
+            "consumer prices between 2020 and 2024."
+        )
+
+    else:
+        st.info(
+            "Key Insight: Household income and consumer prices "
+            "recorded the same percentage change."
+        )
+
+    st.caption(
+        "Note: Percentage changes are calculated relative to 2020."
+    )
+
+    st.divider()
 
     # ==========================================
     # LINE CHART
@@ -256,39 +291,6 @@ try:
         "Note: All indicators are normalized to 2020 = 100 "
         "to allow comparison of their relative changes."
     )
-
-    # ==========================================
-    # KEY OBSERVATION
-    # ==========================================
-
-    st.subheader("Key Observation")
-
-    observations = {
-        "Household Income": latest["income_normalized"],
-        "Consumer Price Index": latest["cpi_normalized"],
-        f"Marriage Rate ({sex_option})": latest["marriage_normalized"]
-    }
-
-    for indicator, value in observations.items():
-
-        change = value - 100
-
-        if change > 0:
-            st.write(
-                f"{indicator} increased by {change:.2f}% "
-                "compared with 2020."
-            )
-
-        elif change < 0:
-            st.write(
-                f"{indicator} decreased by {abs(change):.2f}% "
-                "compared with 2020."
-            )
-
-        else:
-            st.write(
-                f"{indicator} remained at the same level as 2020."
-            )
 
 except Exception as e:
     st.error(f"Error loading or processing data: {e}")
