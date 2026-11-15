@@ -3,14 +3,20 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-# Page configuration
+# ==========================================
+# PAGE CONFIGURATION
+# ==========================================
+
 st.set_page_config(
     page_title="Objective 1 | Scientific Visualisation",
     page_icon="📈",
     layout="wide"
 )
 
-# Custom styling
+# ==========================================
+# CUSTOM STYLING
+# ==========================================
+
 st.markdown("""
 <style>
     .main-title {
@@ -25,7 +31,10 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Header
+# ==========================================
+# HEADER
+# ==========================================
+
 st.markdown(
     '<p class="main-title">Objective 1: Socio-Economic Trends</p>',
     unsafe_allow_html=True
@@ -38,7 +47,10 @@ st.markdown(
 
 st.divider()
 
-# Research Objective
+# ==========================================
+# RESEARCH OBJECTIVE
+# ==========================================
+
 st.subheader("Research Objective")
 
 st.info(
@@ -46,7 +58,10 @@ st.info(
     "and consumer prices over the selected years (2020, 2022, and 2024)."
 )
 
-# Load dataset
+# ==========================================
+# LOAD DATASET
+# ==========================================
+
 @st.cache_data
 def load_data():
     return pd.read_csv("merged_dataset.csv")
@@ -58,23 +73,54 @@ try:
     # Filter selected years
     df = df[df["year"].isin([2020, 2022, 2024])].copy()
 
-    # Remove duplicated economic records
-    df_economic = df.drop_duplicates(
-        subset=["state", "year", "income_median", "cpi_index"]
+    # ==========================================
+    # SEX FILTER
+    # ==========================================
+
+    st.subheader("Filter Data")
+
+    sex_option = st.selectbox(
+        "Select Sex",
+        ["All", "Male", "Female"]
     )
 
-    # Calculate annual averages
-    df_trends = df_economic.groupby("year").agg({
+    # ==========================================
+    # PREPARE ECONOMIC DATA
+    # ==========================================
+
+    # Keep economic data independent of sex selection
+    df_economic = df.drop_duplicates(
+        subset=["state", "year"]
+    )
+
+    df_economic_trends = df_economic.groupby("year").agg({
         "income_median": "mean",
         "cpi_index": "mean"
     })
 
-    # Calculate marriage rate separately
-    df_marriage = df.groupby("year").agg({
+    # ==========================================
+    # PREPARE MARRIAGE DATA
+    # ==========================================
+
+    if sex_option != "All":
+        df_marriage_filtered = df[
+            df["sex"].astype(str).str.strip().str.lower()
+            == sex_option.lower()
+        ]
+    else:
+        df_marriage_filtered = df.copy()
+
+    df_marriage_trends = df_marriage_filtered.groupby("year").agg({
         "marriage_rate": "mean"
     })
 
-    df_trends = df_trends.join(df_marriage).reset_index()
+    # ==========================================
+    # COMBINE DATA
+    # ==========================================
+
+    df_trends = df_economic_trends.join(
+        df_marriage_trends
+    ).reset_index()
 
     # Check required years
     required_years = [2020, 2022, 2024]
@@ -85,25 +131,44 @@ try:
 
     df_trends = df_trends.sort_values("year")
 
-    # Normalize values to 2020 = 100
-    base_2020 = df_trends[df_trends["year"] == 2020].iloc[0]
+    # ==========================================
+    # NORMALIZE VALUES (2020 = 100)
+    # ==========================================
+
+    base_2020 = df_trends[
+        df_trends["year"] == 2020
+    ].iloc[0]
+
+    if (
+        pd.isna(base_2020["income_median"])
+        or pd.isna(base_2020["cpi_index"])
+        or pd.isna(base_2020["marriage_rate"])
+        or base_2020["income_median"] == 0
+        or base_2020["cpi_index"] == 0
+        or base_2020["marriage_rate"] == 0
+    ):
+        st.error("Unable to normalize the data because a 2020 base value is missing or zero.")
+        st.stop()
 
     df_trends["income_normalized"] = (
-        df_trends["income_median"] /
-        base_2020["income_median"]
+        df_trends["income_median"]
+        / base_2020["income_median"]
     ) * 100
 
     df_trends["cpi_normalized"] = (
-        df_trends["cpi_index"] /
-        base_2020["cpi_index"]
+        df_trends["cpi_index"]
+        / base_2020["cpi_index"]
     ) * 100
 
     df_trends["marriage_normalized"] = (
-        df_trends["marriage_rate"] /
-        base_2020["marriage_rate"]
+        df_trends["marriage_rate"]
+        / base_2020["marriage_rate"]
     ) * 100
 
-    # Line Chart
+    # ==========================================
+    # LINE CHART
+    # ==========================================
+
     st.subheader("Trend Analysis")
 
     sns.set_theme(style="whitegrid")
@@ -136,7 +201,7 @@ try:
         y="marriage_normalized",
         marker="^",
         linewidth=2.5,
-        label="Marriage Rate",
+        label=f"Marriage Rate ({sex_option})",
         ax=ax
     )
 
@@ -149,6 +214,7 @@ try:
 
     ax.set_xlabel("Year", fontsize=12)
     ax.set_ylabel("Index Value (2020 = 100)", fontsize=12)
+
     ax.set_xticks([2020, 2022, 2024])
     ax.legend(title="Indicators")
 
@@ -163,16 +229,23 @@ try:
         "to allow comparison of their relative changes."
     )
 
-    # Key Observation
+    # ==========================================
+    # KEY OBSERVATION
+    # ==========================================
+
     st.subheader("Key Observation")
 
-    latest = df_trends[df_trends["year"] == 2024].iloc[0]
+    latest = df_trends[
+        df_trends["year"] == 2024
+    ].iloc[0]
 
-    for indicator, value in [
-        ("Household Income", latest["income_normalized"]),
-        ("Consumer Price Index", latest["cpi_normalized"]),
-        ("Marriage Rate", latest["marriage_normalized"])
-    ]:
+    observations = {
+        "Household Income": latest["income_normalized"],
+        "Consumer Price Index": latest["cpi_normalized"],
+        f"Marriage Rate ({sex_option})": latest["marriage_normalized"]
+    }
+
+    for indicator, value in observations.items():
 
         change = value - 100
 
